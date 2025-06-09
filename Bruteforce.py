@@ -1,47 +1,63 @@
 #!/usr/bin/env python3
-import zipfile, rarfile, tarfile, argparse, sys
+import zipfile
+import argparse
+import time
+from tqdm import tqdm
+import sys
 
-def brute_zip(path, wordlist):
-    with zipfile.ZipFile(path) as zf:
-        for pw in open(wordlist):
-            pw = pw.strip()
-            try:
-                zf.extractall(pwd=pw.encode('utf-8'))
-                print(f"[ZIP] Password ditemukan: {pw}")
-                return
-            except:
-                pass
-    print("[ZIP] Tidak ditemukan password.")
+def try_password(zip_file, password):
+    try:
+        first_file = zip_file.namelist()[0]
+        zip_file.read(first_file, pwd=password.encode())
+        return True
+    except:
+        return False
 
-def brute_rar(path, wordlist):
-    rf = rarfile.RarFile(path)
-    for pw in open(wordlist):
-        pw = pw.strip()
-        try:
-            rf.extractall(pwd=pw)
-            print(f"[RAR] Password ditemukan: {pw}")
-            return
-        except:
-            pass
-    print("[RAR] Tidak ditemukan password.")
-
-def brute_tar(path, wordlist):
-    print("[TAR] .tar.gz biasanya tidak dienkripsi dengan password.")
+def bruteforce_zip(zip_path, wordlist_path):
+    try:
+        zip_file = zipfile.ZipFile(zip_path)
+    except zipfile.BadZipFile:
+        print(f"Error: {zip_path} is not a valid ZIP file")
+        return
+    
+    try:
+        with open(wordlist_path, 'r', encoding='utf-8', errors='ignore') as wordlist:
+            passwords = wordlist.readlines()
+    except FileNotFoundError:
+        print(f"Error: Wordlist file {wordlist_path} not found")
+        return
+    
+    print(f"\n[*] Starting ZIP password bruteforce")
+    print(f"[*] ZIP file: {zip_path}")
+    print(f"[*] Wordlist: {wordlist_path}")
+    print(f"[*] Total passwords to try: {len(passwords)}")
+    print("\n[*] Starting bruteforce...\n")
+    
+    start_time = time.time()
+    
+    for password in tqdm(passwords, desc="Trying passwords"):
+        password = password.strip()
+        if try_password(zip_file, password):
+            end_time = time.time()
+            print(f"\n[+] Password found: {password}")
+            print(f"[+] Time elapsed: {end_time - start_time:.2f} seconds")
+            zip_file.extractall(pwd=password.encode())
+            print(f"[+] Contents extracted successfully!")
+            return password
+    
+    end_time = time.time()
+    print(f"\n[-] Password not found in wordlist")
+    print(f"[*] Time elapsed: {end_time - start_time:.2f} seconds")
+    return None
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("archive", help="file .zip/.rar/.tar.gz")
-    parser.add_argument("wordlist", help="path ke file wordlist (satu password tiap baris)")
+    parser = argparse.ArgumentParser(description='ZIP Password Bruteforcer')
+    parser.add_argument('zip_file', help='Path to the ZIP file')
+    parser.add_argument('wordlist', help='Path to the wordlist file')
+    
     args = parser.parse_args()
+    
+    bruteforce_zip(args.zip_file, args.wordlist)
 
-    if args.archive.endswith(".zip"):
-        brute_zip(args.archive, args.wordlist)
-    elif args.archive.endswith(".rar"):
-        brute_rar(args.archive, args.wordlist)
-    elif args.archive.endswith((".tar.gz", ".tgz")):
-        brute_tar(args.archive, args.wordlist)
-    else:
-        print("[!] Format file tidak didukung.")
-
-if __name__ == "__main__":
+if _name_ == "_main_":
     main()
